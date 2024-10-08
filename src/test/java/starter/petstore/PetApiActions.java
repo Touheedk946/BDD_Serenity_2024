@@ -3,6 +3,7 @@ package starter.petstore;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
+import io.restassured.response.Response;
 import io.restassured.http.ContentType;
 import io.restassured.mapper.ObjectMapperType;
 import net.serenitybdd.core.steps.UIInteractions;
@@ -12,31 +13,44 @@ import static net.serenitybdd.rest.SerenityRest.*;
 
 public class PetApiActions extends UIInteractions {
 
-    @Given("Kitty is available in the pet store")
-    public Long givenKittyIsAvailableInPetStore() {
-        Pet pet = new Pet("Kitty", "available"); // Create a new Pet object
+    private Long createdPetId;
 
-        // Send a POST request to create the pet and return its ID
-        Long newId = given()
+    @Given("Kitty is available in the pet store")
+    public Long createPetID() {
+        Pet pet = new Pet("Kitty", "available");
+
+        Response response = given()
                 .baseUri("https://petstore.swagger.io")
                 .basePath("/v2/pet")
-                .body(pet, ObjectMapperType.GSON)
+                .body(pet)
                 .accept(ContentType.JSON)
                 .contentType(ContentType.JSON)
-                .post()
-                .getBody()
-                .as(Pet.class, ObjectMapperType.GSON)
-                .getId();
-        return newId; // Return the newly created pet ID
+                .post();
+
+        if (response.getStatusCode() != 200 && response.getStatusCode() != 201) {
+            throw new RuntimeException("Failed to create pet: " + response.getStatusLine());
+        }
+
+        System.out.println("Response Body: " + response.getBody().asString());
+
+        createdPetId = response.getBody().as(Pet.class, ObjectMapperType.GSON).getId();
+        System.out.println("Created Pet ID: " + createdPetId);
+        return createdPetId;
     }
 
     @When("I ask for a pet using Kitty's ID: {0}")
-    public void whenIAskForAPetWithId(Long id) {
-        when().get("/" + id); // Call the GET API with the pet ID
+    public void getPetDetails(Long id) {
+        when().get("/" + id);
     }
 
     @Then("I get Kitty as result")
-    public void thenISeeKittyAsResult() {
-        then().body("name", Matchers.equalTo("Kitty")); // Assert that the pet's name is "Kitty"
+    public void verifyResults() {
+        Pet retrievedPet = when().get("/" + createdPetId)
+                .then()
+                .statusCode(200)
+                .extract()
+                .as(Pet.class, ObjectMapperType.GSON);
+
+        then().body("name", Matchers.equalTo(retrievedPet.getName()));
     }
 }
