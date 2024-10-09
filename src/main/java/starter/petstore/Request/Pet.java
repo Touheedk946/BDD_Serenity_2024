@@ -1,4 +1,4 @@
-package starter.petstore;
+package starter.petstore.Request;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
